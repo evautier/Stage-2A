@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jun 19 09:38:20 2017
-
-@author: Erwan
-"""
 
 import numpy as np
 
@@ -31,6 +25,7 @@ def update_square_loss(p,lambdas,T,Cs):
     """
     somme=sum([lambdas[s]*np.dot(T[s].T,Cs[s]).dot(T[s]) for s in range(len(T))])
     ppt=np.dot(p,p.T)
+    
     return(np.divide(somme,ppt))
 
 def update_kl_loss(p,lambdas,T,Cs):
@@ -56,4 +51,5 @@ def update_kl_loss(p,lambdas,T,Cs):
     """
     somme=sum([lambdas[s]*np.dot(T[s].T,Cs[s]).dot(T[s]) for s in range(len(T))])
     ppt=np.dot(p,p.T)
+    
     return(np.exp(np.divide(somme,ppt)))   

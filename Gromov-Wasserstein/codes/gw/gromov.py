@@ -1,18 +1,17 @@
-# -*- coding: utf-8 -*-
-"""
-Éditeur de Spyder
 
-Ceci est un script temporaire.
-"""
+import sys
+sys.path.append('C:/Users/Erwan/Desktop/Stage_2A/Gromov-Wasserstein/codes/gw')
 
 import ot
+import loss
+import updates
 import numpy as np
 import scipy as sp
 
 
-def gromov_wasserstein(C1,C2,p,q,L,epsilon,numItermax = 1000, stopThr=1e-9,verbose=False, log=False):
+def gromov_wasserstein(C1,C2,p,q,loss_fun,epsilon,numItermax = 1000, stopThr=1e-9,verbose=False, log=False):
     """
-    Returns the gromov-wasserstein discrepancy between the two measured similarity matrices
+    Returns the gromov-wasserstein coupling between the two measured similarity matrices
     
     (C1,p) and (C2,q)
     
@@ -47,17 +46,19 @@ def gromov_wasserstein(C1,C2,p,q,L,epsilon,numItermax = 1000, stopThr=1e-9,verbo
          distribution in the source space
     q :  np.ndarray(nt)
          distribution in the target space
-    L :  tensor-matrix multiplication function based on specific loss function
+    loss_fun :  loss function used for the solver either 'square_loss' or 'kl_loss'
     epsilon : float
         Regularization term >0
     numItermax : int, optional
         Max number of iterations
     stopThr : float, optional
-        Stop threshol on error (>0)
+        Stop threshold on error (>0)
     verbose : bool, optional
         Print information along iterations
     log : bool, optional
         record log if True 
+    forcing : np.ndarray(N,2)
+        list of forced couplings (where N is the number of forcing)
          
     Returns
     -------
@@ -76,18 +77,106 @@ def gromov_wasserstein(C1,C2,p,q,L,epsilon,numItermax = 1000, stopThr=1e-9,verbo
     err=1
     
     while (err>stopThr and cpt<numItermax):
+        
         Tprev=T
-        tens=L(C1,C2,T)
-        T=ot.bregman.sinkhorn([p.T[0][i] for i in range(len(p.T[0]))],[q.T[0][i] for i in range(len(q.T[0]))],tens,epsilon)
+        
+        if loss_fun=='square_loss':
+            tens=loss.tensor_square_loss(C1,C2,T)
+            
+        elif loss_fun=='kl_loss':
+            tens=loss.tensor_kl_loss(C1,C2,T)
+            
+        T=ot.bregman.sinkhorn([p.T[0][i] for i in range(len(p.T[0]))],
+                              [q.T[0][i] for i in range(len(q.T[0]))],tens,epsilon)
+       
         if cpt%10==0:
             # we can speed up the process by checking for the error only all the 10th iterations
             err=np.linalg.norm(T-Tprev)
+            
+            if log:
+                log['err'].append(err)
+
+            if verbose:
+                if cpt%200 ==0:
+                    print('{:5s}|{:12s}'.format('It.','Err')+'\n'+'-'*19)
+                print('{:5d}|{:8e}|'.format(cpt,err))
+            
         cpt=cpt+1
-        
-    
+
     return T
 
-def gromov_barycenters(N,Cs,ps,p,lambdas,L,update,epsilon,numItermax = 1000, stopThr=1e-9, verbose=False, log=False):
+
+def gromov_wasserstein2(C1,C2,p,q,loss_fun,epsilon,numItermax = 1000, stopThr=1e-9,verbose=False, log=False):
+    """
+    Returns the gromov-wasserstein discrepancy between the two measured similarity matrices
+    
+    (C1,p) and (C2,q)
+    
+    The function solves the following optimization problem:
+
+    .. math::
+        \GW_Dist = \min_T \sum_{i,j,k,l} L(C1_{i,k},C2_{j,l})*T_{i,j}*T_{k,l}-\epsilon(H(T))
+
+    
+    Where :
+        
+        C1 : Metric cost matrix in the source space
+        C2 : Metric cost matrix in the target space
+        p  : distribution in the source space
+        q  : distribution in the target space 
+        L  : loss function to account for the misfit between the similarity matrices
+        H  : entropy
+        
+            
+    Parameters
+    ----------
+    C1 : np.ndarray(ns,ns)
+         Metric cost matrix in the source space
+    C2 : np.ndarray(nt,nt)
+         Metric costfr matrix in the target space
+    p :  np.ndarray(ns,)
+         distribution in the source space
+    q :  np.ndarray(nt)
+         distribution in the target space
+    loss_fun :  loss function used for the solver either 'square_loss' or 'kl_loss'
+    epsilon : float
+        Regularization term >0
+    numItermax : int, optional
+        Max number of iterations
+    stopThr : float, optional
+        Stop threshold on error (>0)
+    verbose : bool, optional
+        Print information along iterations
+    log : bool, optional
+        record log if True 
+    forcing : np.ndarray(N,2)
+        list of forced couplings (where N is the number of forcing)
+         
+    Returns
+    -------
+    T : coupling between the two spaces that minimizes :
+            \sum_{i,j,k,l} L(C1_{i,k},C2_{j,l})*T_{i,j}*T_{k,l}-\epsilon(H(T))
+    
+    """
+    
+    gw=gromov_wasserstein(C1,C2,p,q,loss_fun,epsilon,numItermax,stopThr,verbose,log)
+
+    if loss_fun=='square_loss':
+        gw_dist=np.sum([loss.square_loss(C1[i][k],C2[j][l])*gw[i][j]*gw[k][l] for i in range(len(C1)) 
+                                                                              for k in range(len(C1)) 
+                                                                              for j in range(len(C2)) 
+                                                                              for l in range(len(C2))])
+    
+    elif loss_fun=='kl_loss':
+        gw_dist=np.sum([loss.kl_loss(C1[i][k],C2[j][l])*gw[i][j]*gw[k][l] for i in range(len(C1)) 
+                                                                          for k in range(len(C1)) 
+                                                                          for j in range(len(C2)) 
+                                                                          for l in range(len(C2))])
+  
+    return gw_dist
+
+
+def gromov_barycenters(N,Cs,ps,p,lambdas,loss_fun,epsilon,numItermax = 1000, stopThr=1e-9, verbose=False, log=False):
     """
     Returns the gromov-wasserstein barycenters of S measured similarity matrices
     
@@ -143,7 +232,6 @@ def gromov_barycenters(N,Cs,ps,p,lambdas,L,update,epsilon,numItermax = 1000, sto
 
     T=[0 for s in range(S)]
     
-    
     #Initialization of C : random SPD matrix
     xalea=np.random.randn(N,2)
     C=sp.spatial.distance.cdist(xalea,xalea)
@@ -155,15 +243,34 @@ def gromov_barycenters(N,Cs,ps,p,lambdas,L,update,epsilon,numItermax = 1000, sto
     error=[]
     
     while(err>stopThr and cpt<numItermax):
+        
         Cprev=C
-        T=[gromov_wasserstein(Cs[s],C,ps[s],p,L,epsilon,numItermax,1e-5,verbose,log) for s in range(S)]
-        C=update(p,lambdas,T,Cs)
+        
+        T=[gromov_wasserstein(Cs[s],C,ps[s],p,loss_fun,epsilon,numItermax,1e-5,verbose,log) for s in range(S)]
+        
+        if loss_fun=='square_loss':
+            C=updates.update_square_loss(p,lambdas,T,Cs)
+            
+        elif loss_fun=='kl_loss':
+            C=updates.update_kl_loss(p,lambdas,T,Cs)
+        
         if cpt%10==0:
             # we can speed up the process by checking for the error only all the 10th iterations
             err=np.linalg.norm(C-Cprev)
             error.append(err)
+            
+            if log:
+                log['err'].append(err)
+
+            if verbose:
+                if cpt%200 ==0:
+                    print('{:5s}|{:12s}'.format('It.','Err')+'\n'+'-'*19)
+                print('{:5d}|{:8e}|'.format(cpt,err))
+                
         cpt=cpt+1
+        
     return C
     
+
 
     

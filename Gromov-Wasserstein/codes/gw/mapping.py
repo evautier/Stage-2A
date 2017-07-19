@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jun 13 14:40:18 2017
-
-@author: Erwan
-"""
 
 import numpy as np
 from sklearn import manifold

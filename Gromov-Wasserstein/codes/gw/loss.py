@@ -1,13 +1,19 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jun 12 09:16:46 2017
-
-@author: Erwan
-"""
-
 
 import numpy as np
 
+def square_loss(a,b):
+    """
+    Returns the value of L(a,b)=(1/2)*|a-b|^2
+    """
+    
+    return (1/2)*(a-b)**2
+
+def kl_loss(a,b):
+    """
+    Returns the value of L(a,b)=a*log(a/b)-a+b
+    """
+    
+    return a*np.log(a/b)-a+b
 
 def tensor_square_loss(C1,C2,T):
     """
@@ -66,8 +72,9 @@ def tensor_square_loss(C1,C2,T):
     
     tens=-np.dot(h1(C1),T).dot(h2(C2).T)
     tens=tens-tens.min()
+
     
-    return tens
+    return np.array(tens)
     
     
 def tensor_kl_loss(C1,C2,T):
@@ -114,7 +121,7 @@ def tensor_kl_loss(C1,C2,T):
     
     
     def f1(a):
-        return a*np.log(a)-a
+        return a*np.log(a+1e-15)-a
     
     def f2(b):
         return b
@@ -123,11 +130,12 @@ def tensor_kl_loss(C1,C2,T):
         return a
     
     def h2(b):
-        return np.log(b)
+        return np.log(b+1e-15)
     
     tens=-np.dot(h1(C1),T).dot(h2(C2).T)
     tens=tens-tens.min()
+
     
-    return tens
     
-    
+    return np.array(tens)
+
